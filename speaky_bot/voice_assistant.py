@@ -2,7 +2,6 @@ import os
 import time
 import speech_recognition as sr
 from gtts import gTTS
-import pygame
 import google.generativeai as genai
 from dotenv import load_dotenv
 import tempfile
@@ -11,8 +10,14 @@ from pydub import AudioSegment
 # Load environment variables
 load_dotenv()
 
-# Initialize pygame mixer for audio playback
-pygame.mixer.init()
+# Try to import pygame for local audio playback (optional for web deployment)
+try:
+    import pygame
+    pygame.mixer.init()
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+    print("pygame not available - audio playback disabled (OK for web deployment)")
 
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -493,7 +498,12 @@ SESSION CONTEXT:
             return random.choice(encouraging_responses)
 
     def speak(self, text):
-        """Convert text to speech and play it."""
+        """Convert text to speech and play it (requires pygame for local playback)."""
+        if not PYGAME_AVAILABLE:
+            print("Audio playback not available - pygame not installed")
+            print("For web deployment, use speak_to_file() instead")
+            return
+            
         temp_filename = None
         try:
             # Get the TTS language code

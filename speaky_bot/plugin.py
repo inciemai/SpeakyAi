@@ -95,7 +95,7 @@ class SpeakyBotPlugin:
         Args:
             text: Text to convert to speech
             language: Language for TTS (default: English)
-            output_path: Path to save audio file (if None, just plays audio)
+            output_path: Path to save audio file (if None, just plays audio - requires pygame)
         
         Returns:
             True if successful, False otherwise
@@ -109,6 +109,7 @@ class SpeakyBotPlugin:
                 self.assistant.speak(text)
                 return True
             except:
+                print("Audio playback failed - consider providing output_path for file generation")
                 return False
     
     def get_plugin_info(self) -> Dict[str, Any]:
