@@ -4,15 +4,19 @@ from .voice_assistant import VoiceAssistant, SUPPORTED_LANGUAGES
 import os
 from dotenv import load_dotenv
 import time
-import pkg_resources
 
 load_dotenv()
 
 def create_app(config=None):
     """Application factory pattern for creating Flask app."""
+    # Get the directory where this module is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    template_folder = os.path.join(current_dir, 'templates')
+    static_folder = os.path.join(current_dir, 'static')
+    
     app = Flask(__name__, 
-                template_folder=pkg_resources.resource_filename('speaky_bot', 'templates'),
-                static_folder=pkg_resources.resource_filename('speaky_bot', 'static'))
+                template_folder=template_folder,
+                static_folder=static_folder)
     
     CORS(app)  # Enable CORS for all routes
     
@@ -85,7 +89,7 @@ def create_app(config=None):
                 
                 # Generate response audio with unique filename
                 response_filename = f'response_{uuid.uuid4().hex[:8]}_{int(time.time())}.mp3'
-                static_dir = pkg_resources.resource_filename('speaky_bot', 'static')
+                static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
                 response_path = os.path.join(static_dir, response_filename)
                 assistant.speak_to_file(ai_response, response_path)
                 
