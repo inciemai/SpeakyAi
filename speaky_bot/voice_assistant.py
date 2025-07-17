@@ -1,3 +1,4 @@
+
 import os
 import time
 import speech_recognition as sr
@@ -5,7 +6,16 @@ from gtts import gTTS
 import google.generativeai as genai
 from dotenv import load_dotenv
 import tempfile
-from pydub import AudioSegment
+
+# Import required libraries for audio processing
+try:
+    import sounddevice as sd
+    import numpy as np
+    import wave
+    SOUNDDEVICE_AVAILABLE = True
+except ImportError:
+    SOUNDDEVICE_AVAILABLE = False
+    print("sounddevice not available - trying alternative audio processing methods")
 
 # Load environment variables
 load_dotenv()
@@ -498,6 +508,43 @@ SESSION CONTEXT:
             return random.choice(encouraging_responses)
 
     def speak(self, text):
+        """Convert text to speech and play it."""
+        try:
+            # Get language code for TTS
+            tts_code = SUPPORTED_LANGUAGES[self.current_language]['tts_code']
+            
+            # Create temporary audio file
+            temp_filename = os.path.join(TEMP_DIR, f"temp_audio_{int(time.time())}.mp3")
+            
+            # Generate speech using gTTS
+            tts = gTTS(text=text, lang=tts_code, slow=False)
+            tts.save(temp_filename)
+            
+            # Convert to WAV using pydub for pygame compatibility
+            audio = AudioSegment.from_mp3(temp_filename)
+            wav_filename = temp_filename.replace('.mp3', '.wav')
+            audio.export(wav_filename, format='wav')
+            
+            # Play audio if pygame is available
+            if PYGAME_AVAILABLE:
+                pygame.mixer.music.load(wav_filename)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)
+                pygame.mixer.music.unload()
+            
+            # Clean up temporary files
+            try:
+                os.remove(temp_filename)
+                os.remove(wav_filename)
+            except OSError:
+                pass  # Ignore cleanup errors
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error processing audio file: {e}")
+            return False
         """Convert text to speech and play it (requires pygame for local playback)."""
         if not PYGAME_AVAILABLE:
             print("Audio playback not available - pygame not installed")
