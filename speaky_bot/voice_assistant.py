@@ -1087,16 +1087,4 @@ FOCUS AREAS:
             'confidence_level': stats['confidence_average']
         }
 
-def main():
-    # Check for API key
-    if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY not found in environment variables.")
-        print("Please set your Gemini API key in a .env file or environment variable.")
-        return
-    
-    # Create and run the assistant
-    assistant = VoiceAssistant()
-    assistant.run()
-
-if __name__ == "__main__":
-    main() 
+ 

@@ -64,9 +64,29 @@ class VoiceAssistant {
 
     async startRecording() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                } 
+            });
+            
+            // Try to use WebM format, fallback to other formats if not supported
+            let mimeType = 'audio/webm';
+            if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    mimeType = 'audio/mp4';
+                } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+                    mimeType = 'audio/wav';
+                } else {
+                    mimeType = ''; // Use default
+                }
+            }
+            
             this.mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm'  // Use WebM format for better compatibility
+                mimeType: mimeType
             });
             this.audioChunks = [];
 
@@ -98,9 +118,19 @@ class VoiceAssistant {
     }
 
     async processAudio() {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        // Determine the correct file extension based on the MIME type
+        let fileExtension = 'webm';
+        if (this.mediaRecorder && this.mediaRecorder.mimeType) {
+            if (this.mediaRecorder.mimeType.includes('mp4')) {
+                fileExtension = 'mp4';
+            } else if (this.mediaRecorder.mimeType.includes('wav')) {
+                fileExtension = 'wav';
+            }
+        }
+        
+        const audioBlob = new Blob(this.audioChunks, { type: this.mediaRecorder ? this.mediaRecorder.mimeType : 'audio/webm' });
         const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');  // Specify filename with extension
+        formData.append('audio', audioBlob, `recording.${fileExtension}`);  // Use correct extension
         formData.append('language', this.languageSelect.value);
         formData.append('voice', this.voiceSelect.value);  // Include voice preference
 

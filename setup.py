@@ -3,18 +3,15 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
-
 setup(
-    name="speaky-bot-plugin",
+    name="speaky-bot",
     version="1.0.0",
-    author="Your Name",
-    author_email="your.email@example.com",
-    description="A multilingual voice assistant plugin with grammar correction and communication skills analysis",
+    author="SpeakyAI",
+    author_email="contact@speakyai.com",
+    description="A multilingual voice assistant with grammar correction and communication skills analysis",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/speaky-bot",
+    url="https://github.com/speakyai/speaky-bot",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -28,7 +25,17 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     python_requires=">=3.8",
-    install_requires=requirements,
+    install_requires=[
+        "Flask>=3.0.0",
+        "Flask-CORS>=4.0.0",
+        "SpeechRecognition>=3.10.0",
+        "pydub>=0.25.0",
+        "gTTS>=2.5.0",
+        "pygame>=2.5.0",
+        "google-generativeai>=0.3.0",
+        "python-dotenv>=1.0.0",
+        "PyAudio>=0.2.14; sys_platform != 'win32'",  # Optional for Windows
+    ],
     include_package_data=True,
     package_data={
         'speaky_bot': [
@@ -38,14 +45,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'speaky-bot=speaky_bot.cli:main',
-        ],
-    },
-    extras_require={
-        'dev': [
-            'pytest',
-            'black',
-            'flake8',
+            'speaky-bot=main:main',
         ],
     },
 ) 
