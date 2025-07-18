@@ -1,5 +1,5 @@
 """
-Speaky Bot - A multilingual voice assistant with grammar correction and communication skills analysis.
+Speaky Bot - A multilingual voice assistant plugin with grammar correction and communication skills analysis.
 """
 
 __version__ = "1.0.0"

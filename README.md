@@ -1,21 +1,19 @@
-# Speaky Bot - AI-Powered Multilingual Voice Assistant
+# English Speaking Coach - AI-Powered Voice Assistant
 
-An intelligent multilingual voice assistant that helps users improve their communication skills through real-time AI-powered feedback, grammar correction, and pronunciation guidance in multiple languages.
+An intelligent English learning assistant that helps users improve their spoken English and communication skills through real-time AI-powered feedback, grammar correction, and pronunciation guidance.
 
-## 🎯 What is Speaky Bot?
+## 🎯 What is a Plugin?
 
-Speaky Bot is a comprehensive voice assistant that provides:
+A plugin is a modular software component that adds specific functionality to your application without modifying the core code. The Speaky Bot plugin provides:
 
-- **Multilingual Support**: Works with English, Malayalam, Hindi, Tamil, and German
-- **Real-time Grammar Correction**: Detects and explains grammar mistakes
-- **Natural Expression Coaching**: Suggests more fluent, natural ways to express ideas
-- **Educational Explanations**: Detailed explanations of corrections with academic context
-- **Pronunciation Guidance**: Tips for better pronunciation and delivery
-- **Interactive Learning**: Follow-up questions and vocabulary expansion suggestions
+- **Easy Integration**: Drop-in voice assistant functionality for any Python application
+- **Modular Design**: Use only the features you need
+- **Standardized Interface**: Consistent API for voice processing, text analysis, and TTS
+- **Extensible**: Can be extended with custom features
 
 ## 🚀 Features
 
-- **🌍 Multilingual Support** - Works with English, Malayalam, Hindi, Tamil, and German
+- **🎯 English Learning Focus** - Specialized for improving English communication skills
 - **✏️ Real-time Grammar Correction** - Detects and explains grammar mistakes
 - **💬 Natural Expression Coaching** - Suggests more fluent, natural ways to express ideas
 - **📚 Educational Explanations** - Detailed explanations of corrections with academic context
@@ -28,11 +26,19 @@ Speaky Bot is a comprehensive voice assistant that provides:
 
 ## 📦 Quick Setup
 
-### 🔧 Setup
+### 🚀 One-Command Setup
+```bash
+# Clone and setup automatically
+git clone <repository-url>
+cd speaky-bot
+python setup_coach.py
+```
+
+### 🔧 Manual Setup
 ```bash
 # 1. Clone the repository
 git clone <repository-url>
-cd SpeakyAi
+cd speaky-bot
 
 # 2. Install requirements
 pip install -r requirements.txt
@@ -56,16 +62,16 @@ cp .env.template .env
 
 ### ✅ Test Your Setup
 ```bash
-# Run the application to test everything works
-python main.py
+# Run the demo to test everything works
+python examples/english_learning_demo.py
 ```
 
 ## 🎮 How to Use
 
 ### 🌐 Web Interface (Recommended)
 ```bash
-# Start the Speaky Bot
-python main.py
+# Start the English Speaking Coach
+python app.py
 
 # Open in your browser
 # http://localhost:5000
@@ -81,7 +87,11 @@ python main.py
    - Educational explanations
    - Follow-up questions
 
-
+### 📝 Text Demo
+```bash
+# See examples of corrections and feedback
+python examples/english_learning_demo.py
+```
 
 ## 💬 Example Interaction
 
@@ -113,38 +123,52 @@ Here's exactly how the English Speaking Coach works:
 
 ### 🔧 For Developers
 ```python
-from speaky_bot.voice_assistant import VoiceAssistant
+from speaky_bot.plugin import create_plugin
 
-# Create voice assistant instance
-assistant = VoiceAssistant()
+# Create plugin instance
+plugin = create_plugin({
+    'default_language': 'English',
+    'voice_preference': 'male'
+})
 
 # Process text
-result = assistant.process_text_input("Hello, how are you?")
+result = plugin.process_text("Hello, how are you?")
 print(result['response'])
 
 # Process audio file
-result = assistant.process_audio_file('audio.wav')
-if result and result[0]:
-    text, grammar_info = result
-    print(f"Transcribed: {text}")
+result = plugin.process_audio('audio.wav', language='English')
+print(result['transcribed_text'])
 
 # Text-to-speech
-assistant.speak_to_file("Hello world", "output.mp3")
+plugin.text_to_speech("Hello world", output_path="output.mp3")
 ```
 
 ### Flask Integration
 ```python
 from flask import Flask
-from speaky_bot.voice_assistant import VoiceAssistant
+from speaky_bot.plugin import create_plugin
 
 app = Flask(__name__)
-assistant = VoiceAssistant()
+plugin = create_plugin()
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
     text = request.json['text']
-    result = assistant.process_text_input(text)
+    result = plugin.process_text(text)
     return jsonify(result)
+```
+
+## 🔧 Plugin Interface
+
+The plugin provides a standardized interface for integration:
+
+```python
+from speaky_bot.plugin import SpeakyBotPlugin
+
+class MyCustomPlugin(SpeakyBotPlugin):
+    def process_text(self, text, language='English'):
+        # Custom text processing logic
+        return super().process_text(text, language)
 ```
 
 ## 🌍 Supported Languages
@@ -158,20 +182,22 @@ def analyze():
 ## 📁 Project Structure
 
 ```
-SpeakyAi/
-├── speaky_bot/              # Main package
+speaky-bot/
+├── speaky_bot/              # Main plugin package
 │   ├── __init__.py         # Package initialization
 │   ├── voice_assistant.py  # Core voice assistant logic
 │   ├── app.py              # Flask web application
+│   ├── cli.py              # Command-line interface
+│   ├── plugin.py           # Plugin interface
 │   ├── templates/          # Web templates
 │   └── static/             # Static files (JS, CSS)
-├── main.py                 # Application entry point
+├── examples/               # Usage examples
 ├── setup.py                # Package setup
 ├── requirements.txt        # Dependencies
 └── README.md              # This file
 ```
 
-## 🔌 How Speaky Bot Works
+## 🔌 How the Plugin Works
 
 1. **Voice Input**: Captures audio through microphone or file
 2. **Speech Recognition**: Converts audio to text using Google Speech API

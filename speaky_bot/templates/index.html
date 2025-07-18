@@ -1,110 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice Assistant</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
-  <style>
-    .pulse {
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(1); }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-  <div class="container mx-auto px-4 py-8">
-    <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6">
-      <div class="text-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">Voice Assistant</h1>
-        <p class="text-gray-600">Click the microphone to start speaking</p>
-      </div>
-
-      <!-- Mic Button -->
-      <div class="text-center mb-6">
-        <button id="micButton" class="p-4 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- Status -->
-      <div id="status" class="text-center mb-4 text-gray-600">
-        Ready to listen...
-      </div>
-
-      <!-- Result and Feedback Section -->
-      <div id="result" class="bg-gray-50 p-4 rounded-lg mb-4 min-h-[100px] hidden">
-        <div class="font-semibold mb-2">Last Conversation:</div>
-        <div id="userText" class="text-gray-700 mb-2"></div>
-        <div id="assistantText" class="text-blue-600 mb-4"></div>
-
-        <!-- Feedback Section -->
-        <div id="feedbackSection" class="hidden mt-4 border-t pt-4">
-          <div class="font-semibold mb-2 text-gray-800">Communication Analysis & Encouragement:</div>
-
-          <!-- Progress Acknowledgment -->
-          <div id="progressAcknowledgment" class="mb-4 p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
-            <div class="text-green-700 font-medium">🎉 Great job practicing! Keep up the communication efforts!</div>
-          </div>
-
-          <!-- Summary -->
-          <div class="mb-4 p-3 bg-blue-50 rounded-lg">
-            <div class="flex justify-between items-center mb-2">
-              <div class="text-sm font-medium text-gray-700">Confidence Score:</div>
-              <div id="confidenceScore" class="text-green-600 font-semibold">--</div>
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-800">Voice Assistant</h1>
+                <p class="text-gray-600">Click the microphone to start speaking</p>
             </div>
-            <div class="flex justify-between items-center mb-2">
-              <div class="text-sm font-medium text-gray-700">Suggestions:</div>
-              <div id="suggestionsCount" class="text-blue-600 font-semibold">--</div>
+
+            <div class="flex justify-center mb-6">
+                <select id="languageSelect" class="block w-full max-w-xs px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <!-- Languages will be populated via JavaScript -->
+                </select>
             </div>
-            <div class="text-sm font-medium text-gray-700 mb-1">Learning Opportunities:</div>
-            <div id="errorCategories" class="text-sm text-gray-600"></div>
-          </div>
 
-          <!-- Feedback Details -->
-          <div id="correctedText" class="mb-3">
-            <div class="text-sm font-medium text-gray-700">Suggested Improvement:</div>
-            <div class="text-gray-600 bg-white p-2 rounded border-l-4 border-yellow-400"></div>
-          </div>
-
-          <div id="grammarFeedback" class="mb-3">
-            <div class="text-sm font-medium text-gray-700">Grammar Guidance:</div>
-            <div class="text-gray-600 bg-white p-2 rounded"></div>
-          </div>
-
-          <div id="speakingTips" class="mb-3">
-            <div class="text-sm font-medium text-gray-700">Pronunciation Tips:</div>
-            <div class="text-gray-600 bg-white p-2 rounded"></div>
-          </div>
-
-          <div id="communicationAdvice" class="mb-3">
-            <div class="text-sm font-medium text-gray-700">Communication Enhancement:</div>
-            <div class="text-gray-600 bg-white p-2 rounded"></div>
-          </div>
-
-          <div id="alternativeExpressions" class="mb-3">
-            <div class="text-sm font-medium text-gray-700">Try These Expressions:</div>
-            <div class="text-gray-600 bg-white p-2 rounded"></div>
-          </div>
-
-          <div class="mb-3 p-3 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
-            <div class="text-sm font-medium text-indigo-700 mb-2">💡 Continue the Conversation - Click to try:</div>
-            <div id="conversationPrompts" class="text-sm">
-              <span class="text-gray-500">Keep practicing! Feel free to share more thoughts.</span>
+            <div class="flex justify-center mb-6">
+                <select id="voiceSelect" class="block w-full max-w-xs px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <!-- Voices will be populated via JavaScript -->
+                </select>
             </div>
-          </div>
+
+            <div class="text-center mb-6">
+                <button id="micButton" class="p-4 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div id="status" class="text-center mb-4 text-gray-600">
+                Ready to listen...
+            </div>
+
+            <div id="result" class="bg-gray-50 p-4 rounded-lg mb-4 min-h-[100px] hidden">
+                <div class="font-semibold mb-2">Last Conversation:</div>
+                <div id="userText" class="text-gray-700 mb-2"></div>
+                <div id="assistantText" class="text-blue-600 mb-4"></div>
+                
+                <!-- Grammar and Communication Feedback Section -->
+                <div id="feedbackSection" class="hidden mt-4 border-t pt-4">
+                    <div class="font-semibold mb-2 text-gray-800">Communication Analysis & Encouragement:</div>
+                    
+                    <!-- Progress Acknowledgment -->
+                    <div id="progressAcknowledgment" class="mb-4 p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+                        <div class="text-green-700 font-medium">🎉 Great job practicing! Keep up the communication efforts!</div>
+                    </div>
+                    
+                    <!-- Analysis Summary -->
+                    <div class="mb-4 p-3 bg-blue-50 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-sm font-medium text-gray-700">Confidence Score:</div>
+                            <div id="confidenceScore" class="text-green-600 font-semibold">--</div>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-sm font-medium text-gray-700">Suggestions:</div>
+                            <div id="suggestionsCount" class="text-blue-600 font-semibold">--</div>
+                        </div>
+                        <div class="text-sm font-medium text-gray-700 mb-1">Learning Opportunities:</div>
+                        <div id="errorCategories" class="text-sm text-gray-600"></div>
+                    </div>
+                    
+                    <!-- Corrected Text -->
+                    <div id="correctedText" class="mb-3">
+                        <div class="text-sm font-medium text-gray-700">Suggested Improvement:</div>
+                        <div class="text-gray-600 bg-white p-2 rounded border-l-4 border-yellow-400"></div>
+                    </div>
+                    
+                    <!-- Grammar Feedback -->
+                    <div id="grammarFeedback" class="mb-3">
+                        <div class="text-sm font-medium text-gray-700">Grammar Guidance:</div>
+                        <div class="text-gray-600 bg-white p-2 rounded"></div>
+                    </div>
+                    
+                    <!-- Speaking Tips -->
+                    <div id="speakingTips" class="mb-3">
+                        <div class="text-sm font-medium text-gray-700">Pronunciation Tips:</div>
+                        <div class="text-gray-600 bg-white p-2 rounded"></div>
+                    </div>
+                    
+                    <!-- Communication Advice -->
+                    <div id="communicationAdvice" class="mb-3">
+                        <div class="text-sm font-medium text-gray-700">Communication Enhancement:</div>
+                        <div class="text-gray-600 bg-white p-2 rounded"></div>
+                    </div>
+                    
+                    <!-- Alternative Expressions -->
+                    <div id="alternativeExpressions" class="mb-3">
+                        <div class="text-sm font-medium text-gray-700">Try These Expressions:</div>
+                        <div class="text-gray-600 bg-white p-2 rounded"></div>
+                    </div>
+                    
+                    <!-- Conversation Prompts (NEW) -->
+                    <div class="mb-3 p-3 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
+                        <div class="text-sm font-medium text-indigo-700 mb-2">💡 Continue the Conversation - Click to try:</div>
+                        <div id="conversationPrompts" class="text-sm">
+                            <span class="text-gray-500">Keep practicing! Feel free to share more thoughts.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 
-  <script src="/static/js/voice-assistant.js"></script>
+    <script src="/static/js/voice-assistant.js"></script>
 </body>
-</html>
+</html> 

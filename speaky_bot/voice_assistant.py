@@ -1,4 +1,3 @@
-
 import os
 import time
 import speech_recognition as sr
@@ -509,43 +508,6 @@ SESSION CONTEXT:
             return random.choice(encouraging_responses)
 
     def speak(self, text):
-        """Convert text to speech and play it."""
-        try:
-            # Get language code for TTS
-            tts_code = SUPPORTED_LANGUAGES[self.current_language]['tts_code']
-            
-            # Create temporary audio file
-            temp_filename = os.path.join(TEMP_DIR, f"temp_audio_{int(time.time())}.mp3")
-            
-            # Generate speech using gTTS
-            tts = gTTS(text=text, lang=tts_code, slow=False)
-            tts.save(temp_filename)
-            
-            # Convert to WAV using pydub for pygame compatibility
-            audio = AudioSegment.from_mp3(temp_filename)
-            wav_filename = temp_filename.replace('.mp3', '.wav')
-            audio.export(wav_filename, format='wav')
-            
-            # Play audio if pygame is available
-            if PYGAME_AVAILABLE:
-                pygame.mixer.music.load(wav_filename)
-                pygame.mixer.music.play()
-                while pygame.mixer.music.get_busy():
-                    time.sleep(0.1)
-                pygame.mixer.music.unload()
-            
-            # Clean up temporary files
-            try:
-                os.remove(temp_filename)
-                os.remove(wav_filename)
-            except OSError:
-                pass  # Ignore cleanup errors
-                
-            return True
-            
-        except Exception as e:
-            print(f"Error processing audio file: {e}")
-            return False
         """Convert text to speech and play it (requires pygame for local playback)."""
         if not PYGAME_AVAILABLE:
             print("Audio playback not available - pygame not installed")
@@ -1087,4 +1049,16 @@ FOCUS AREAS:
             'confidence_level': stats['confidence_average']
         }
 
- 
+def main():
+    # Check for API key
+    if not GEMINI_API_KEY:
+        print("Error: GEMINI_API_KEY not found in environment variables.")
+        print("Please set your Gemini API key in a .env file or environment variable.")
+        return
+    
+    # Create and run the assistant
+    assistant = VoiceAssistant()
+    assistant.run()
+
+if __name__ == "__main__":
+    main() 
