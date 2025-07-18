@@ -6,16 +6,17 @@ from gtts import gTTS
 import google.generativeai as genai
 from dotenv import load_dotenv
 import tempfile
+import warnings
 
-# Import required libraries for audio processing
+# Suppress pydub warnings about ffmpeg
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub")
+
 try:
-    import sounddevice as sd
-    import numpy as np
-    import wave
-    SOUNDDEVICE_AVAILABLE = True
+    from pydub import AudioSegment
+    PYDUB_AVAILABLE = True
 except ImportError:
-    SOUNDDEVICE_AVAILABLE = False
-    print("sounddevice not available - trying alternative audio processing methods")
+    PYDUB_AVAILABLE = False
+    print("Warning: pydub not available - audio processing may be limited")
 
 # Load environment variables
 load_dotenv()
@@ -616,24 +617,58 @@ SESSION CONTEXT:
         """Process an audio file and return transcribed text with grammar correction."""
         temp_wav_path = None
         try:
+            # Check if pydub is available and working
+            if not PYDUB_AVAILABLE:
+                print("Warning: pydub not available, trying direct audio processing...")
+                # Try to use the audio file directly
+                with sr.AudioFile(audio_file_path) as source:
+                    audio = self.recognizer.record(source)
+                    language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
+                    text = self.recognizer.recognize_google(audio, language=language_code)
+                    
+                    # Process with grammar correction
+                    corrected_text, had_errors, grammar_info = self.correct_grammar(text)
+                    
+                    return text, grammar_info
+            
             # Convert audio to supported format if needed
-            audio_segment = AudioSegment.from_file(audio_file_path)
-            
-            # Convert to WAV format for better compatibility with unique filename
-            import uuid
-            temp_wav_path = os.path.join(TEMP_DIR, f'temp_audio_{uuid.uuid4().hex[:8]}.wav')
-            audio_segment.export(temp_wav_path, format="wav")
-            
-            # Recognize speech
-            with sr.AudioFile(temp_wav_path) as source:
-                audio = self.recognizer.record(source)
-                language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                text = self.recognizer.recognize_google(audio, language=language_code)
+            try:
+                audio_segment = AudioSegment.from_file(audio_file_path)
                 
-                # Process with grammar correction
-                corrected_text, had_errors, grammar_info = self.correct_grammar(text)
+                # Convert to WAV format for better compatibility with unique filename
+                import uuid
+                temp_wav_path = os.path.join(TEMP_DIR, f'temp_audio_{uuid.uuid4().hex[:8]}.wav')
+                audio_segment.export(temp_wav_path, format="wav")
                 
-                return text, grammar_info
+                # Recognize speech
+                with sr.AudioFile(temp_wav_path) as source:
+                    audio = self.recognizer.record(source)
+                    language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
+                    text = self.recognizer.recognize_google(audio, language=language_code)
+                    
+                    # Process with grammar correction
+                    corrected_text, had_errors, grammar_info = self.correct_grammar(text)
+                    
+                    return text, grammar_info
+                    
+            except Exception as pydub_error:
+                print(f"Pydub processing failed: {pydub_error}")
+                print("Trying direct audio processing as fallback...")
+                
+                # Fallback: try to use the audio file directly
+                try:
+                    with sr.AudioFile(audio_file_path) as source:
+                        audio = self.recognizer.record(source)
+                        language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
+                        text = self.recognizer.recognize_google(audio, language=language_code)
+                        
+                        # Process with grammar correction
+                        corrected_text, had_errors, grammar_info = self.correct_grammar(text)
+                        
+                        return text, grammar_info
+                except Exception as fallback_error:
+                    print(f"Fallback audio processing also failed: {fallback_error}")
+                    return None, None
                 
         except Exception as e:
             print(f"Error processing audio file: {e}")

@@ -228,6 +228,66 @@ speaky-bot/
 - Internet connection for AI processing
 - Microphone access (for voice input)
 - Google Gemini AI API key
+- FFmpeg (for audio processing) - **See troubleshooting section below**
+
+## 🔧 Troubleshooting
+
+### FFmpeg Warning/Error
+If you see this warning when running SpeakyAI:
+```
+RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+```
+
+**Quick Fix (Windows):**
+```bash
+# Run the automatic setup script
+python setup_ffmpeg.py
+
+# Or use the batch file
+setup_ffmpeg.bat
+```
+
+**Manual Installation Options:**
+
+1. **Using Chocolatey (Windows):**
+   ```bash
+   choco install ffmpeg
+   ```
+
+2. **Using Scoop (Windows):**
+   ```bash
+   scoop install ffmpeg
+   ```
+
+3. **Manual Download:**
+   - Visit: https://ffmpeg.org/download.html
+   - Download the Windows build
+   - Extract and add to your system PATH
+
+4. **Linux/macOS:**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt update && sudo apt install ffmpeg
+   
+   # macOS (using Homebrew)
+   brew install ffmpeg
+   ```
+
+**After Installation:**
+- Restart your terminal/command prompt
+- Run SpeakyAI again - the warning should be gone!
+
+### Other Common Issues
+
+**Audio Not Working:**
+- Check microphone permissions
+- Ensure audio drivers are installed
+- Try a different browser (Chrome recommended)
+
+**API Key Issues:**
+- Verify your Google Gemini API key is correct
+- Check your internet connection
+- Ensure the API key has proper permissions
 
 ## 🤝 Contributing
 
