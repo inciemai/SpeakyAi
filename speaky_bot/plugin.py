@@ -18,8 +18,6 @@ class SpeakyBotPlugin:
         # Apply configuration
         if 'default_language' in self.config:
             self.assistant.current_language = self.config['default_language']
-        if 'voice_preference' in self.config:
-            self.assistant.set_voice_preference(self.config['voice_preference'])
     
     def process_text(self, text: str, language: str = 'English') -> Dict[str, Any]:
         """

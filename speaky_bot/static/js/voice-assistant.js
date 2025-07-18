@@ -2,7 +2,6 @@ class VoiceAssistant {
     constructor() {
         this.micButton = document.getElementById('micButton');
         this.languageSelect = document.getElementById('languageSelect');
-        this.voiceSelect = document.getElementById('voiceSelect');
         this.status = document.getElementById('status');
         this.result = document.getElementById('result');
         this.userText = document.getElementById('userText');
@@ -13,7 +12,6 @@ class VoiceAssistant {
         this.audioChunks = [];
         
         this.initializeLanguages();
-        this.initializeVoices();
         this.setupEventListeners();
     }
 
@@ -30,25 +28,6 @@ class VoiceAssistant {
             }
         } catch (error) {
             console.error('Error loading languages:', error);
-        }
-    }
-
-    async initializeVoices() {
-        try {
-            const response = await fetch('/api/voices');
-            const voices = await response.json();
-            
-            for (const [voiceKey, voiceName] of Object.entries(voices)) {
-                const option = document.createElement('option');
-                option.value = voiceKey;
-                option.textContent = voiceName;
-                this.voiceSelect.appendChild(option);
-            }
-            
-            // Set male as default
-            this.voiceSelect.value = 'male';
-        } catch (error) {
-            console.error('Error loading voices:', error);
         }
     }
 
@@ -132,7 +111,6 @@ class VoiceAssistant {
         const formData = new FormData();
         formData.append('audio', audioBlob, `recording.${fileExtension}`);  // Use correct extension
         formData.append('language', this.languageSelect.value);
-        formData.append('voice', this.voiceSelect.value);  // Include voice preference
 
         try {
             const response = await fetch('/api/process', {

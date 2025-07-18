@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 import speech_recognition as sr
 from gtts import gTTS
@@ -57,12 +58,6 @@ def cleanup_existing_temp_files():
 # Run cleanup on startup
 cleanup_existing_temp_files()
 
-# Available voice options
-VOICE_OPTIONS = {
-    'male': 'Male Voice',
-    'female': 'Female Voice'
-}
-
 # Supported languages with their codes and native exit commands
 SUPPORTED_LANGUAGES = {
     'English': {
@@ -110,25 +105,10 @@ class VoiceAssistant:
         # Set default language
         self.current_language = 'English'
         
-        # Set default voice preference (male)
-        self.voice_preference = 'male'
-
         # Initialize conversation history for context-aware analysis
         self.conversation_history = []
         self.user_patterns = {}
         self.grammar_analysis_cache = {}
-
-    def get_available_voices(self):
-        """Get available voice options."""
-        return VOICE_OPTIONS
-
-    def set_voice_preference(self, voice_preference):
-        """Set voice preference (male/female)."""
-        if voice_preference in VOICE_OPTIONS:
-            self.voice_preference = voice_preference
-            print(f"Voice preference set to: {VOICE_OPTIONS[voice_preference]}")
-        else:
-            print(f"Invalid voice preference. Available options: {list(VOICE_OPTIONS.keys())}")
 
     def correct_grammar(self, text):
         """Enhanced grammar correction with multi-stage analysis and confidence scoring."""
@@ -586,7 +566,7 @@ SESSION CONTEXT:
                 with sr.AudioFile(audio_file_path) as source:
                     audio = self.recognizer.record(source)
                     language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                    text = self.recognizer.recognize_google(audio, language=language_code)
+                    text = self.recognizer.recognize_google(audio, language=language_code)  # type: ignore
                     
                     # Process with grammar correction
                     corrected_text, had_errors, grammar_info = self.correct_grammar(text)
@@ -606,7 +586,7 @@ SESSION CONTEXT:
                 with sr.AudioFile(temp_wav_path) as source:
                     audio = self.recognizer.record(source)
                     language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                    text = self.recognizer.recognize_google(audio, language=language_code)
+                    text = self.recognizer.recognize_google(audio, language=language_code)  # type: ignore
                     
                     # Process with grammar correction
                     corrected_text, had_errors, grammar_info = self.correct_grammar(text)
@@ -622,7 +602,7 @@ SESSION CONTEXT:
                     with sr.AudioFile(audio_file_path) as source:
                         audio = self.recognizer.record(source)
                         language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                        text = self.recognizer.recognize_google(audio, language=language_code)
+                        text = self.recognizer.recognize_google(audio, language=language_code)  # type: ignore
                         
                         # Process with grammar correction
                         corrected_text, had_errors, grammar_info = self.correct_grammar(text)
@@ -654,22 +634,99 @@ SESSION CONTEXT:
                             pass  # Ignore cleanup errors
                     threading.Thread(target=delayed_cleanup, daemon=True).start()
 
+    # def speak_to_file(self, text, output_path):
+    #     """Convert text to speech and save to file with 1.5x speed."""
+    #     try:
+    #         # Get the TTS language code
+    #         tts_code = SUPPORTED_LANGUAGES[self.current_language]['tts_code']
+            
+    #         # Create TTS object
+    #         tts = gTTS(text=text, lang=tts_code, slow=False)
+            
+    #         # Save to a temporary file first
+    #         import tempfile
+    #         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
+    #             temp_filename = temp_file.name
+    #             tts.save(temp_filename)
+            
+    #         try:
+    #             # Load the audio with pydub
+    #             from pydub import AudioSegment
+    #             audio = AudioSegment.from_mp3(temp_filename)
+                
+    #             # Speed up the audio by 2x
+    #             # This method maintains pitch while increasing speed
+    #             samples = audio.get_array_of_samples()
+                
+    #             # Create a new audio segment with increased speed by taking every other sample
+    #             audio_faster = audio._spawn(samples[::2])  # Take every second sample to double speed
+                
+    #             # Adjust frame rate to maintain pitch at 2x speed
+    #             audio_faster = audio_faster.set_frame_rate(int(audio.frame_rate *0.1))
+                
+    #             # Export the processed audio with a higher bitrate for better quality
+    #             audio_faster.export(output_path, format="mp3", bitrate="192k")
+                
+    #             return True
+    #         finally:
+    #             # Clean up the temporary file
+    #             try:
+    #                 os.remove(temp_filename)
+    #             except:
+    #                 pass  # Ignore cleanup errors
+                
+    #     except Exception as e:
+    #         print(f"Error saving speech to file: {e}")
+    #         return False
+    # def speak_to_file(self, text, output_path):
+    #     """Convert text to speech and save to file."""
+    #     try:
+    #         # Get the TTS language code
+    #         tts_code = SUPPORTED_LANGUAGES[self.current_language]['tts_code']
+            
+    #         # Create TTS object
+    #         tts = gTTS(text=text, lang=tts_code, slow=True)
+            
+    #         # Save to the specified path
+    #         tts.save(output_path)
+            
+    #         return True
+    #     except Exception as e:
+    #         print(f"Error saving speech to file: {e}")
+    #         return False
     def speak_to_file(self, text, output_path):
-        """Convert text to speech and save to file."""
+        """Convert text to speech, increase speed to 1.3x (preserve pitch), and save to file."""
         try:
             # Get the TTS language code
             tts_code = SUPPORTED_LANGUAGES[self.current_language]['tts_code']
+
+            # Create temporary file for original TTS audio
+            temp_path = output_path.replace(".mp3", "_temp.mp3")
             
-            # Create TTS object
+            # Generate speech with gTTS
             tts = gTTS(text=text, lang=tts_code, slow=False)
-            
-            # Save to the specified path
-            tts.save(output_path)
-            
+            tts.save(temp_path)
+
+            # Use ffmpeg to change speed without altering pitch
+            command = [
+                "ffmpeg",
+                "-i", temp_path,
+                "-filter:a", "atempo=1.3",
+                "-vn",  # no video
+                output_path,
+                "-y"    # overwrite if exists
+            ]
+            subprocess.run(command, check=True)
+
+            # Clean up temp file
+            import os
+            os.remove(temp_path)
+
             return True
         except Exception as e:
             print(f"Error saving speech to file: {e}")
             return False
+
 
     def add_to_conversation_history(self, text, grammar_info=None):
         """Add user input to conversation history for context-aware analysis."""
@@ -1058,7 +1115,7 @@ def main():
     
     # Create and run the assistant
     assistant = VoiceAssistant()
-    assistant.run()
+    # assistant.run()
 
 if __name__ == "__main__":
     main() 

@@ -127,8 +127,7 @@ from speaky_bot.plugin import create_plugin
 
 # Create plugin instance
 plugin = create_plugin({
-    'default_language': 'English',
-    'voice_preference': 'male'
+    'default_language': 'English'
 })
 
 # Process text

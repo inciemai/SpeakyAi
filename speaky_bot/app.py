@@ -64,11 +64,9 @@ def create_app(config=None):
         
         audio_file = request.files['audio']
         language = request.form.get('language', 'English')
-        voice_preference = request.form.get('voice', 'male')  # Default to male voice
-        
-        # Set the assistant's language and voice preference
+        # Remove voice_preference = request.form.get('voice', 'male')
+        # Remove assistant.set_voice_preference(voice_preference)
         assistant.current_language = language
-        assistant.set_voice_preference(voice_preference)
         
         temp_input = None
         try:
@@ -170,10 +168,10 @@ def create_app(config=None):
     def get_languages():
         return jsonify(SUPPORTED_LANGUAGES)
 
-    @app.route('/api/voices')
-    def get_voices():
-        """Get available voice options."""
-        return jsonify(assistant.get_available_voices())
+    # @app.route('/api/voices')
+    # def get_voices():
+    #     """Get available voice options."""
+    #     return jsonify(assistant.get_available_voices())
     
     @app.route('/api/health')
     def health_check():
