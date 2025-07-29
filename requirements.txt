@@ -5,7 +5,6 @@ Flask-CORS==4.0.0
 # Audio processing
 python-aifc  # Backport of aifc module for Python 3.13
 SpeechRecognition>=3.10.1
-pydub==0.25.1
 gTTS==2.5.1
 pygame
 sounddevice==0.5.2  # Requires PortAudio system library

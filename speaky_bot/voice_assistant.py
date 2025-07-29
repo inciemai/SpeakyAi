@@ -1,4 +1,5 @@
 import os
+import wave
 import tempfile
 from typing import Optional, Dict, Any
 import vosk
@@ -6,7 +7,6 @@ import numpy as np
 import wget
 import zipfile
 from gtts import gTTS
-from pydub import AudioSegment
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -58,25 +58,59 @@ class VoiceAssistant:
         else:
             self.sd = None
 
+    def _convert_to_wav(self, audio_file: str) -> str:
+        """Convert audio file to WAV format using ffmpeg."""
+        try:
+            import subprocess
+            output_file = tempfile.mktemp(suffix='.wav')
+            subprocess.run([
+                'ffmpeg', '-i', audio_file,
+                '-acodec', 'pcm_s16le',
+                '-ar', '16000',
+                '-ac', '1',
+                '-y', output_file
+            ], check=True, capture_output=True)
+            return output_file
+        except Exception as e:
+            print(f"Error converting audio: {str(e)}")
+            return audio_file
+
     def transcribe_audio(self, audio_file: str) -> str:
         """Transcribe audio file to text using vosk."""
         try:
-            # Load and convert audio file
-            wf = AudioSegment.from_file(audio_file)
-            wf = wf.set_frame_rate(16000)
-            wf = wf.set_channels(1)
-            audio_data = np.array(wf.get_array_of_samples())
+            # Convert audio to WAV format if needed
+            wav_file = self._convert_to_wav(audio_file)
+            
+            # Read WAV file
+            wf = wave.open(wav_file, 'rb')
+            if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != 'NONE':
+                raise ValueError("Audio file must be WAV format mono PCM")
             
             # Process audio data
-            if self.rec.AcceptWaveform(audio_data.tobytes()):
-                result = eval(self.rec.Result())
-                return result.get('text', '')
-            else:
-                result = eval(self.rec.PartialResult())
-                return result.get('partial', '')
+            while True:
+                data = wf.readframes(4000)
+                if len(data) == 0:
+                    break
+                if self.rec.AcceptWaveform(data):
+                    result = eval(self.rec.Result())
+                    text = result.get('text', '')
+                    if text:
+                        return text
+            
+            # Get final result
+            result = eval(self.rec.FinalResult())
+            return result.get('text', '')
+            
         except Exception as e:
             print(f"Error transcribing audio: {str(e)}")
             return "Could not transcribe audio"
+        finally:
+            # Clean up temporary file if it was created
+            if 'wav_file' in locals() and wav_file != audio_file:
+                try:
+                    os.remove(wav_file)
+                except:
+                    pass
 
     def text_to_speech(self, text: str, output_file: str) -> None:
         """Convert text to speech and save to file."""
