@@ -1,0 +1,16 @@
+# Core web framework
+Flask==3.0.2
+Flask-CORS==4.0.0
+
+# Audio processing (alternative implementation)
+vosk==0.3.45  # Alternative to SpeechRecognition
+sounddevice  # For audio recording
+pydub==0.25.1
+gTTS==2.5.1
+pygame
+
+# AI and language processing
+google-generativeai==0.3.2
+python-dotenv==1.0.1
+
+# Note: PyAudio is moved to optional-requirements.txt as it's only needed for local development 

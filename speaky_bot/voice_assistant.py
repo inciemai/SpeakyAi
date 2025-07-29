@@ -10,6 +10,7 @@ import warnings
 import asyncio
 import concurrent.futures
 from functools import partial
+from typing import Optional, Dict, Any
 
 # Suppress pydub warnings about ffmpeg
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub")
@@ -20,6 +21,24 @@ try:
 except ImportError:
     PYDUB_AVAILABLE = False
     print("Warning: pydub not available - audio processing may be limited")
+
+# Try to import speech_recognition, fall back to vosk if not available
+try:
+    import speech_recognition as sr
+    USE_VOSK = False
+except ImportError:
+    import vosk
+    import sounddevice as sd
+    import numpy as np
+    USE_VOSK = True
+    # Download the model if needed
+    if not os.path.exists("model"):
+        import wget
+        print("Downloading vosk model...")
+        wget.download("https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip")
+        import zipfile
+        with zipfile.ZipFile("vosk-model-small-en-us-0.15.zip", 'r') as zip_ref:
+            zip_ref.extractall(".")
 
 # Load environment variables
 load_dotenv()
