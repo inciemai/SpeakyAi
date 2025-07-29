@@ -8,6 +8,8 @@ sounddevice  # For audio recording
 pydub==0.25.1
 gTTS==2.5.1
 pygame
+numpy  # Required for audio processing
+wget  # Required for downloading vosk model
 
 # AI and language processing
 google-generativeai==0.3.2
