@@ -12,5 +12,3 @@ sounddevice==0.5.2  # Requires PortAudio system library
 # AI and language processing
 google-generativeai==0.3.2
 python-dotenv==1.0.1
-
-# Note: PyAudio is moved to optional-requirements.txt as it's only needed for local development
