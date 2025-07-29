@@ -7,6 +7,9 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import tempfile
 import warnings
+import asyncio
+import concurrent.futures
+from functools import partial
 
 # Suppress pydub warnings about ffmpeg
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub")
@@ -32,8 +35,14 @@ except ImportError:
 
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Set generation config for more controlled responses
+generation_config = {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 40,
+    "max_output_tokens": 200,
+}
 
 # Create a directory for temporary files in the current working directory
 TEMP_DIR = os.path.join(os.getcwd(), 'temp_audio')
@@ -109,7 +118,22 @@ class VoiceAssistant:
         self.conversation_history = []
         self.user_patterns = {}
         self.grammar_analysis_cache = {}
+        
+        # Configure Gemini AI
+        if not GEMINI_API_KEY:
+            print("Warning: GEMINI_API_KEY not found in environment variables")
+        else:
+            try:
+                genai.configure(api_key=GEMINI_API_KEY)
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                print("Debug: Successfully configured Gemini AI")
+            except Exception as e:
+                print(f"Error configuring Gemini AI: {e}")
+                self.model = None
 
+        # Initialize thread pool for parallel processing
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        
     def correct_grammar(self, text):
         """Enhanced grammar correction with multi-stage analysis and confidence scoring."""
         try:
@@ -162,52 +186,55 @@ class VoiceAssistant:
             }
 
     def _perform_initial_grammar_analysis(self, text):
-        """Perform initial grammar analysis to detect errors."""
+        """Perform initial grammar analysis focused on meaning-changing errors."""
         try:
-            language_name = SUPPORTED_LANGUAGES[self.current_language]['native_name']
+            # For voice input, we focus only on major errors that affect meaning
+            analysis_result = {
+                'had_errors': False,
+                'corrected_text': text,
+                'grammar_feedback': '',
+                'speaking_tips': '',
+                'communication_advice': '',
+                'confidence_score': 1.0,
+                'error_categories': [],
+                'suggestions_count': 0,
+                'alternative_expressions': []
+            }
             
-            prompt = f"""You are an encouraging {self.current_language} communication coach helping learners build confidence and fluency. Your role is to motivate speakers to communicate more while providing helpful corrections.
-
-Language: {self.current_language} ({language_name})
-Speaker's input: "{text}"
-
-COACHING APPROACH:
-1. Always acknowledge the effort and positive aspects first
-2. Provide corrections in a supportive, non-intimidating way
-3. Encourage the speaker to elaborate or continue speaking
-4. Focus on communication effectiveness over perfect grammar
-5. Celebrate progress and natural expression
-
-Analyze for:
-- Grammar and structure (but prioritize communication over perfection)
-- Natural flow and expression
-- Confidence-building opportunities
-- Areas where the speaker can expand their thoughts
-
-Respond in this format:
-HAS_ERRORS: [true/false]
-CONFIDENCE: [0.0-1.0]
-ERROR_CATEGORIES: [comma-separated list, if any]
-CORRECTED_TEXT: [gently corrected version that maintains speaker's intent]
-GRAMMAR_FEEDBACK: [encouraging correction with positive reinforcement]
-SPEAKING_TIPS: [motivational pronunciation and delivery advice]
-COMMUNICATION_ADVICE: [supportive suggestions to expand communication and speak more]
-
-IMPORTANT: 
-- Start feedback with positive acknowledgment
-- Encourage the speaker to share more details or continue the conversation
-- Make corrections feel like helpful suggestions, not criticisms
-- Focus on building communication confidence
-"""
-
-            response = model.generate_content(prompt)
-            response_text = response.text.strip()
+            # Split into words and analyze
+            words = text.lower().split()
             
-            return self._parse_grammar_response(response_text, text)
+            # Check for missing essential words (articles, verbs, etc.)
+            if len(words) >= 2:  # Only check if we have at least 2 words
+                # Check for missing "is/are/am" in questions
+                if words[0] in ['who', 'what', 'where', 'when', 'why', 'how']:
+                    if not any(word in words[1:] for word in ['is', 'are', 'am', 'was', 'were']):
+                        analysis_result['had_errors'] = True
+                        analysis_result['error_categories'].append('missing_words')
+                
+                # Check for wrong word order in questions
+                if words[0] in ['is', 'are', 'am'] and any(word in words[1:] for word in ['who', 'what', 'where', 'when', 'why', 'how']):
+                    analysis_result['had_errors'] = True
+                    analysis_result['error_categories'].append('word_order')
+            
+            # Ignore punctuation and capitalization errors
+            # Only focus on errors that affect meaning
+            
+            return analysis_result
             
         except Exception as e:
             print(f"Error in initial grammar analysis: {e}")
-            return self._create_fallback_response(text)
+            return {
+                'had_errors': False,
+                'corrected_text': text,
+                'grammar_feedback': '',
+                'speaking_tips': '',
+                'communication_advice': '',
+                'confidence_score': 1.0,
+                'error_categories': [],
+                'suggestions_count': 0,
+                'alternative_expressions': []
+            }
 
     def _perform_detailed_correction(self, text, initial_analysis):
         """Perform detailed correction with context and alternatives."""
@@ -248,7 +275,7 @@ ENHANCEMENT FOCUS:
 - Celebrate progress and effort over perfection
 """
 
-            response = model.generate_content(prompt)
+            response = self.model.generate_content(prompt) # Use self.model
             response_text = response.text.strip()
             
             detailed_result = self._parse_grammar_response(response_text, text)
@@ -414,78 +441,76 @@ ENHANCEMENT FOCUS:
         
         return rules.get(self.current_language, rules['English'])
 
-    def get_ai_response(self, user_input, grammar_correction_info=None):
+    async def get_ai_response(self, user_input, grammar_correction_info=None):
         """Get AI response using Gemini with encouraging, conversation-extending approach."""
         try:
-            language_name = SUPPORTED_LANGUAGES[self.current_language]['native_name']
+            if not GEMINI_API_KEY or not self.model:
+                return self._handle_api_error()
+
+            print("Debug: Gemini API key is configured and model is initialized")
+            print(f"Debug: Using language {self.current_language}")
             
-            # Build context-aware, encouraging prompt
-            base_prompt = f"""You are an encouraging, supportive {self.current_language} conversation partner and communication coach. Your role is to:
-
-1. Respond naturally to the user's message in {self.current_language} ({language_name})
-2. Keep the conversation flowing and encourage more speaking
-3. Be supportive and positive about their communication efforts
-4. Ask follow-up questions to encourage elaboration
-5. Show genuine interest in what they're sharing
-
-User said: "{user_input}"
-"""
+            # First, perform grammar correction if not already done
+            if not grammar_correction_info:
+                _, _, grammar_correction_info = self.correct_grammar(user_input)
             
-            # Add grammar correction context if available
-            if grammar_correction_info and grammar_correction_info.get('had_errors'):
-                corrected_text = grammar_correction_info.get('corrected_text', user_input)
-                progress_ack = grammar_correction_info.get('progress_acknowledgment', '')
-                conversation_prompts = grammar_correction_info.get('conversation_prompts', [])
-                
-                base_prompt += f"""
-
-COMMUNICATION CONTEXT:
-- The user's intended message was: "{corrected_text}"
-- Progress acknowledgment: {progress_ack}
-- Suggested conversation prompts: {'; '.join(conversation_prompts[:2]) if conversation_prompts else 'Continue the conversation naturally'}
-
-RESPONSE APPROACH:
-- Respond to their intended message warmly and naturally
-- Acknowledge their communication effort positively
-- Include 1-2 follow-up questions to encourage them to speak more
-- Be genuinely interested and supportive
-- Help them feel comfortable expressing longer thoughts
-- If appropriate, gently incorporate one of the conversation prompts
-"""
-            else:
-                base_prompt += """
-
-RESPONSE APPROACH:
-- Celebrate their clear communication!
-- Respond naturally and show interest
-- Ask follow-up questions to encourage more sharing
-- Keep the conversation engaging and supportive
-- Motivate them to continue speaking and expressing their thoughts
-"""
+            # Create the prompt with grammar correction context
+            prompt = self._create_prompt(user_input, grammar_correction_info)
+            print("Debug: Generated base prompt")
             
-            # Add session-specific encouragement if we have conversation history
-            if len(self.conversation_history) >= 2:
-                base_prompt += f"""
-
-SESSION CONTEXT:
-- This is an ongoing conversation (message #{len(self.conversation_history) + 1})
-- Continue building on the conversation naturally
-- Acknowledge their continued effort to practice and communicate
-- Keep them engaged and motivated to share more
-"""
+            # Make API calls asynchronously with retries
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    print(f"Debug: Attempting API call (attempt {attempt + 1}/{max_retries})")
+                    
+                    # Run the API call in a thread pool to avoid blocking
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        self.executor,
+                        partial(
+                            self.model.generate_content,
+                            prompt,
+                            generation_config=generation_config,
+                            safety_settings=[
+                                {
+                                    "category": "HARM_CATEGORY_HARASSMENT",
+                                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                                }
+                            ]
+                        )
+                    )
+                    
+                    print("Debug: API call completed")
+                    
+                    if response and response.text:
+                        ai_response = response.text.strip()
+                        print("Debug: Got valid response from API")
+                        
+                        # Update conversation history
+                        self.conversation_history.append({
+                            'text': user_input,
+                            'response': ai_response,
+                            'grammar_info': grammar_correction_info,
+                            'timestamp': time.time()
+                        })
+                        
+                        return ai_response
+                    else:
+                        print(f"Debug: Empty response from Gemini API on attempt {attempt + 1}")
+                        continue
+                        
+                except Exception as api_error:
+                    print(f"Debug: Gemini API error on attempt {attempt + 1}: {str(api_error)}")
+                    if attempt == max_retries - 1:
+                        raise
+                    await asyncio.sleep(1)  # Wait before retry
             
-            response = model.generate_content(base_prompt)
-            return response.text
+            raise Exception("Failed to get response after maximum retries")
             
         except Exception as e:
-            encouraging_responses = [
-                f"Thank you for sharing! I'd love to hear more about that. Could you tell me more details?",
-                f"That's interesting! Please continue - what else would you like to share about this topic?",
-                f"Great job communicating! I'm curious to know more. What are your thoughts on this?",
-                f"You're doing well with your {self.current_language}! Please feel free to elaborate on that."
-            ]
-            import random
-            return random.choice(encouraging_responses)
+            print(f"Debug: Error in get_ai_response: {str(e)}")
+            return self._handle_api_error(str(e))
 
     def speak(self, text):
         """Convert text to speech and play it (requires pygame for local playback)."""
@@ -555,84 +580,42 @@ SESSION CONTEXT:
                 'grammar_correction': None
             }
 
-    def process_audio_file(self, audio_file_path):
+    async def process_audio_file(self, audio_file_path):
         """Process an audio file and return transcribed text with grammar correction."""
         temp_wav_path = None
         try:
-            # Check if pydub is available and working
-            if not PYDUB_AVAILABLE:
-                print("Warning: pydub not available, trying direct audio processing...")
-                # Try to use the audio file directly
-                with sr.AudioFile(audio_file_path) as source:
-                    audio = self.recognizer.record(source)
-                    language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                    text = self.recognizer.recognize_google(audio, language=language_code)  # type: ignore
-                    
-                    # Process with grammar correction
-                    corrected_text, had_errors, grammar_info = self.correct_grammar(text)
-                    
-                    return text, grammar_info
+            # Run speech recognition in thread pool
+            loop = asyncio.get_event_loop()
+            text = await loop.run_in_executor(
+                self.executor,
+                self._recognize_speech,
+                audio_file_path
+            )
             
-            # Convert audio to supported format if needed
-            try:
-                audio_segment = AudioSegment.from_file(audio_file_path)
+            if not text:
+                return None, None
                 
-                # Convert to WAV format for better compatibility with unique filename
-                import uuid
-                temp_wav_path = os.path.join(TEMP_DIR, f'temp_audio_{uuid.uuid4().hex[:8]}.wav')
-                audio_segment.export(temp_wav_path, format="wav")
-                
-                # Recognize speech
-                with sr.AudioFile(temp_wav_path) as source:
-                    audio = self.recognizer.record(source)
-                    language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                    text = self.recognizer.recognize_google(audio, language=language_code)  # type: ignore
-                    
-                    # Process with grammar correction
-                    corrected_text, had_errors, grammar_info = self.correct_grammar(text)
-                    
-                    return text, grammar_info
-                    
-            except Exception as pydub_error:
-                print(f"Pydub processing failed: {pydub_error}")
-                print("Trying direct audio processing as fallback...")
-                
-                # Fallback: try to use the audio file directly
-                try:
-                    with sr.AudioFile(audio_file_path) as source:
-                        audio = self.recognizer.record(source)
-                        language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
-                        text = self.recognizer.recognize_google(audio, language=language_code)  # type: ignore
-                        
-                        # Process with grammar correction
-                        corrected_text, had_errors, grammar_info = self.correct_grammar(text)
-                        
-                        return text, grammar_info
-                except Exception as fallback_error:
-                    print(f"Fallback audio processing also failed: {fallback_error}")
-                    return None, None
+            # Process with grammar correction
+            corrected_text, had_errors, grammar_info = await loop.run_in_executor(
+                self.executor,
+                self.correct_grammar,
+                text
+            )
+            
+            print(f"Debug: Grammar correction result - had_errors: {had_errors}")
+            print(f"Debug: Grammar info: {grammar_info}")
+            
+            return text, grammar_info
                 
         except Exception as e:
             print(f"Error processing audio file: {e}")
             return None, None
         finally:
-            # Clean up temporary file in finally block to ensure it's always cleaned up
             if temp_wav_path and os.path.exists(temp_wav_path):
                 try:
                     os.remove(temp_wav_path)
                 except OSError as e:
                     print(f"Warning: Could not remove temporary file {temp_wav_path}: {e}")
-                    # If we can't remove it now, try to remove it later
-                    import threading
-                    def delayed_cleanup():
-                        import time
-                        time.sleep(1)  # Wait a bit
-                        try:
-                            if os.path.exists(temp_wav_path):
-                                os.remove(temp_wav_path)
-                        except:
-                            pass  # Ignore cleanup errors
-                    threading.Thread(target=delayed_cleanup, daemon=True).start()
 
     # def speak_to_file(self, text, output_path):
     #     """Convert text to speech and save to file with 1.5x speed."""
@@ -695,7 +678,7 @@ SESSION CONTEXT:
     #         print(f"Error saving speech to file: {e}")
     #         return False
     def speak_to_file(self, text, output_path):
-        """Convert text to speech, increase speed to 1.3x (preserve pitch), and save to file."""
+        """Convert text to speech, optimize for speed while maintaining quality."""
         try:
             # Get the TTS language code
             tts_code = SUPPORTED_LANGUAGES[self.current_language]['tts_code']
@@ -703,24 +686,31 @@ SESSION CONTEXT:
             # Create temporary file for original TTS audio
             temp_path = output_path.replace(".mp3", "_temp.mp3")
             
-            # Generate speech with gTTS
+            # Generate speech with gTTS (faster mode)
             tts = gTTS(text=text, lang=tts_code, slow=False)
             tts.save(temp_path)
 
-            # Use ffmpeg to change speed without altering pitch
+            # Use ffmpeg with optimized settings for faster processing
             command = [
                 "ffmpeg",
                 "-i", temp_path,
-                "-filter:a", "atempo=1.3",
-                "-vn",  # no video
+                "-filter:a", "atempo=1.3",  # Speed up audio
+                "-codec:a", "libmp3lame",   # Use MP3 codec
+                "-qscale:a", "4",           # Higher quality (0-9, lower is better)
+                "-ar", "24000",             # Sample rate
+                "-ac", "1",                 # Mono audio
+                "-b:a", "32k",             # Bitrate
                 output_path,
-                "-y"    # overwrite if exists
+                "-y",                      # Overwrite if exists
+                "-loglevel", "error"       # Reduce logging
             ]
-            subprocess.run(command, check=True)
+            subprocess.run(command, check=True, capture_output=True)
 
             # Clean up temp file
-            import os
-            os.remove(temp_path)
+            try:
+                os.remove(temp_path)
+            except:
+                pass  # Ignore cleanup errors
 
             return True
         except Exception as e:
@@ -813,7 +803,7 @@ FOCUS AREAS:
 - Make the speaker feel comfortable expressing longer, more complex thoughts
 """
 
-            response = model.generate_content(prompt)
+            response = self.model.generate_content(prompt)
             response_text = response.text.strip()
             
             return self._parse_grammar_response(response_text, text)
@@ -1105,6 +1095,105 @@ FOCUS AREAS:
             'communication_accuracy': round(100 - stats['error_rate'], 1),
             'confidence_level': stats['confidence_average']
         }
+
+    def _create_prompt(self, user_input, grammar_info=None):
+        """Create the prompt for the AI model."""
+        # Add grammar correction context if available
+        grammar_context = ""
+        if grammar_info and grammar_info.get('had_errors'):
+            grammar_context = f"""
+Grammar Analysis:
+- Original text: "{user_input}"
+- Corrected text: "{grammar_info.get('corrected_text', user_input)}"
+- Grammar feedback: {grammar_info.get('grammar_feedback', '')}
+- Speaking tips: {grammar_info.get('speaking_tips', '')}
+"""
+
+        return f"""You are a knowledgeable AI assistant. Respond to the user's input following these EXACT rules:
+
+1. First, check for grammar mistakes:
+   - If the word order or grammar is incorrect, start with:
+     "It seems like there might be a grammatical error in your question.
+     Did you mean: '[corrected question]'?
+     
+     Note: In English, we typically use the word order 'Who is the [title] of [place/organization]' for such questions."
+   - Add a blank line after the grammar explanation
+
+2. Then provide a comprehensive answer in 4-5 clear sentences that:
+   - Starts with a direct answer to the question
+   - Includes important details and context
+   - Provides interesting facts or examples
+   - Explains any relevant connections or implications
+
+3. End with ONE natural follow-up question that flows from the conversation
+
+4. Total response should be 5-6 sentences (not counting the grammar correction)
+
+Current language: {self.current_language}
+User input: "{user_input}"
+{grammar_context}
+
+Example format:
+User: "who is india of father"
+Assistant: "It seems like there might be a grammatical error in your question.
+Did you mean: 'Who is the Father of India?'
+
+Note: In English, we typically use the word order 'Who is the [title] of [place/organization]' rather than '[place] of [title]'.
+
+Mahatma Gandhi is widely known as the Father of India, earning this title through his pivotal role in India's independence movement. He led India's non-violent struggle for freedom from British rule from 1915 to 1947, introducing revolutionary concepts like civil disobedience and peaceful resistance. His philosophy of non-violence, known as 'ahimsa', influenced civil rights movements worldwide and inspired leaders like Martin Luther King Jr. and Nelson Mandela. Gandhi's principles of truth, non-violence, and social justice continue to shape India's national identity and inspire movements for peace and justice globally. What aspects of Gandhi's non-violent philosophy would you like to learn more about?"
+
+Now respond to the user's input following these rules exactly."""
+
+    def _handle_api_error(self, error_details=None):
+        """Handle API errors with appropriate messages."""
+        if not GEMINI_API_KEY:
+            return "Error: Gemini API key not configured. Please check your environment variables."
+        elif not self.model:
+            return "Error: Could not initialize Gemini AI model. Please check your API key and try restarting the server."
+        return f"I apologize, but I'm having trouble generating a response right now. Error: {error_details if error_details else 'Unknown error'}"
+
+    def _convert_to_wav(self, input_file):
+        """Convert audio file to WAV format using ffmpeg."""
+        try:
+            output_file = input_file.rsplit('.', 1)[0] + '.wav'
+            command = [
+                "ffmpeg",
+                "-i", input_file,
+                "-acodec", "pcm_s16le",  # Use PCM 16-bit encoding
+                "-ar", "16000",  # Set sample rate to 16kHz
+                "-ac", "1",      # Convert to mono
+                output_file,
+                "-y"            # Overwrite if exists
+            ]
+            subprocess.run(command, check=True, capture_output=True)
+            return output_file
+        except Exception as e:
+            print(f"Error converting audio to WAV: {e}")
+            return None
+
+    def _recognize_speech(self, audio_file_path):
+        """Helper method to recognize speech from audio file."""
+        try:
+            # Convert audio to WAV format first
+            wav_file = self._convert_to_wav(audio_file_path)
+            if not wav_file:
+                return None
+
+            try:
+                with sr.AudioFile(wav_file) as source:
+                    audio = self.recognizer.record(source)
+                    language_code = SUPPORTED_LANGUAGES[self.current_language]['code']
+                    return self.recognizer.recognize_google(audio, language=language_code)
+            finally:
+                # Clean up the temporary WAV file
+                if wav_file != audio_file_path:  # Only delete if it's a new file
+                    try:
+                        os.remove(wav_file)
+                    except:
+                        pass  # Ignore cleanup errors
+        except Exception as e:
+            print(f"Error in speech recognition: {e}")
+            return None
 
 def main():
     # Check for API key
