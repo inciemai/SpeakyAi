@@ -245,7 +245,7 @@ speaky-bot/
 
 ## 📋 Requirements
 
-- Python 3.8+
+- Python 3.8 - 3.11 (3.11 recommended, 3.13 not supported yet)
 - Internet connection for AI processing
 - Microphone access (for voice input)
 - Google Gemini AI API key
