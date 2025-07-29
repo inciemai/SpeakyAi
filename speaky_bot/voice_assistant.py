@@ -2,7 +2,6 @@ import os
 import tempfile
 from typing import Optional, Dict, Any
 import vosk
-import sounddevice as sd
 import numpy as np
 import wget
 import zipfile
@@ -18,6 +17,9 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+# Check if running in server environment
+IS_SERVER = os.getenv('RENDER', '').lower() == 'true'
 
 # Download vosk model if needed
 MODEL_PATH = "model"
@@ -44,6 +46,17 @@ class VoiceAssistant:
         vosk.SetLogLevel(-1)  # Reduce logging
         self.model = vosk.Model(MODEL_PATH)
         self.rec = vosk.KaldiRecognizer(self.model, 16000)
+
+        # Only import sounddevice if not running on server
+        if not IS_SERVER:
+            try:
+                import sounddevice as sd
+                self.sd = sd
+            except OSError:
+                print("Warning: Audio hardware not available")
+                self.sd = None
+        else:
+            self.sd = None
 
     def transcribe_audio(self, audio_file: str) -> str:
         """Transcribe audio file to text using vosk."""
