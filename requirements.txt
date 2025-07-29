@@ -8,6 +8,7 @@ SpeechRecognition>=3.10.1
 pydub==0.25.1
 gTTS==2.5.1
 pygame
+sounddevice==0.5.2  # Requires PortAudio system library
 
 # AI and language processing
 google-generativeai==0.3.2
