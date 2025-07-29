@@ -2,10 +2,8 @@ import os
 import wave
 import tempfile
 from typing import Optional, Dict, Any
-import vosk
 import numpy as np
-import wget
-import zipfile
+import speech_recognition as sr
 from gtts import gTTS
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -21,14 +19,6 @@ if GEMINI_API_KEY:
 # Check if running in server environment
 IS_SERVER = os.getenv('RENDER', '').lower() == 'true'
 
-# Download vosk model if needed
-MODEL_PATH = "model"
-if not os.path.exists(MODEL_PATH):
-    print("Downloading vosk model...")
-    wget.download("https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip")
-    with zipfile.ZipFile("vosk-model-small-en-us-0.15.zip", 'r') as zip_ref:
-        zip_ref.extractall(".")
-
 SUPPORTED_LANGUAGES = {
     'English': 'en',
     'Malayalam': 'ml',
@@ -41,12 +31,8 @@ class VoiceAssistant:
     def __init__(self, language: str = 'English'):
         self.language = language
         self.language_code = SUPPORTED_LANGUAGES.get(language, 'en')
+        self.recognizer = sr.Recognizer()
         
-        # Initialize vosk
-        vosk.SetLogLevel(-1)  # Reduce logging
-        self.model = vosk.Model(MODEL_PATH)
-        self.rec = vosk.KaldiRecognizer(self.model, 16000)
-
         # Only import sounddevice if not running on server
         if not IS_SERVER:
             try:
@@ -76,31 +62,23 @@ class VoiceAssistant:
             return audio_file
 
     def transcribe_audio(self, audio_file: str) -> str:
-        """Transcribe audio file to text using vosk."""
+        """Transcribe audio file to text using Google Speech Recognition."""
         try:
             # Convert audio to WAV format if needed
             wav_file = self._convert_to_wav(audio_file)
             
-            # Read WAV file
-            wf = wave.open(wav_file, 'rb')
-            if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != 'NONE':
-                raise ValueError("Audio file must be WAV format mono PCM")
+            # Use Google Speech Recognition
+            with sr.AudioFile(wav_file) as source:
+                audio = self.recognizer.record(source)
+                text = self.recognizer.recognize_google(audio, language=self.language_code)
+                return text
             
-            # Process audio data
-            while True:
-                data = wf.readframes(4000)
-                if len(data) == 0:
-                    break
-                if self.rec.AcceptWaveform(data):
-                    result = eval(self.rec.Result())
-                    text = result.get('text', '')
-                    if text:
-                        return text
-            
-            # Get final result
-            result = eval(self.rec.FinalResult())
-            return result.get('text', '')
-            
+        except sr.UnknownValueError:
+            print("Speech Recognition could not understand audio")
+            return "Could not understand audio"
+        except sr.RequestError as e:
+            print(f"Could not request results from Speech Recognition service; {e}")
+            return "Speech service error"
         except Exception as e:
             print(f"Error transcribing audio: {str(e)}")
             return "Could not transcribe audio"
