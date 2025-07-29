@@ -4,6 +4,9 @@ from .voice_assistant import VoiceAssistant, SUPPORTED_LANGUAGES
 import os
 from dotenv import load_dotenv
 import time
+import asyncio
+from functools import partial
+import subprocess
 
 load_dotenv()
 
@@ -58,110 +61,109 @@ def create_app(config=None):
         return render_template('index.html')
 
     @app.route('/api/process', methods=['POST'])
-    def process_audio():
+    async def process_audio():
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio file provided'}), 400
         
         audio_file = request.files['audio']
+        if not audio_file.filename:
+            return jsonify({'error': 'Invalid audio file'}), 400
+            
         language = request.form.get('language', 'English')
-        voice_preference = request.form.get('voice', 'male')  # Default to male voice
-        
-        # Set the assistant's language and voice preference
         assistant.current_language = language
-        assistant.set_voice_preference(voice_preference)
         
         temp_input = None
         try:
-            # Save the uploaded audio file temporarily with unique filename
+            # Create temp directory if not exists
             temp_dir = os.path.join(os.getcwd(), 'temp_audio')
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
+            os.makedirs(temp_dir, exist_ok=True)
                 
-            import uuid
-            temp_input = os.path.join(temp_dir, f'input_{uuid.uuid4().hex[:8]}.wav')
+            # Generate unique filename with original extension
+            file_extension = os.path.splitext(audio_file.filename)[1].lower()[1:] or 'webm'
+            if file_extension not in ['webm', 'mp4', 'wav', 'mp3', 'ogg']:
+                file_extension = 'webm'
+            
+            temp_input = os.path.join(temp_dir, f'input_{os.urandom(4).hex()}.{file_extension}')
             audio_file.save(temp_input)
             
-            # Process the audio and get response
-            result = assistant.process_audio_file(temp_input)
-            if result and result[0]:  # Check if we got valid text
-                text, grammar_info = result
-                ai_response = assistant.get_ai_response(text, grammar_info)
+            # Process audio and get response concurrently
+            loop = asyncio.get_event_loop()
+            audio_task = loop.create_task(assistant.process_audio_file(temp_input))
+            
+            # Wait for audio processing
+            result = await audio_task
+            
+            if not result or not result[0]:
+                return jsonify({
+                    'error': 'Could not understand the audio. Please try speaking clearly and ensure your microphone is working properly.'
+                }), 400
                 
-                # Generate response audio with unique filename
-                response_filename = f'response_{uuid.uuid4().hex[:8]}_{int(time.time())}.mp3'
-                static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-                response_path = os.path.join(static_dir, response_filename)
-                assistant.speak_to_file(ai_response, response_path)
-                
-                # Schedule cleanup of response file after some time
-                import threading
-                def cleanup_response_file():
-                    import time
-                    time.sleep(300)  # Keep file for 5 minutes
-                    try:
-                        if os.path.exists(response_path):
-                            os.remove(response_path)
-                    except:
-                        pass  # Ignore cleanup errors
-                threading.Thread(target=cleanup_response_file, daemon=True).start()
-                
-                response = {
+            text, grammar_info = result
+            
+            # Get AI response
+            ai_response = await assistant.get_ai_response(text, grammar_info)
+            
+            # Generate response audio
+            response_filename = f'response_{os.urandom(4).hex()}_{int(time.time())}.mp3'
+            static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+            response_path = os.path.join(static_dir, response_filename)
+            
+            # Run text-to-speech in thread pool with optimized settings
+            await loop.run_in_executor(
+                assistant.executor,
+                partial(assistant.speak_to_file, ai_response, response_path)
+            )
+            
+            # Schedule cleanup of response file
+            def cleanup_response_file():
+                time.sleep(300)  # Keep file for 5 minutes
+                try:
+                    if os.path.exists(response_path):
+                        os.remove(response_path)
+                except:
+                    pass
+            threading.Thread(target=cleanup_response_file, daemon=True).start()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Audio processed successfully',
+                'data': {
                     'text': ai_response,
                     'audio_url': f'/static/{response_filename}',
                     'user_input': text,
-                    'grammar_correction': {
-                        'corrected_text': grammar_info.get('corrected_text', text),
-                        'grammar_feedback': grammar_info.get('grammar_feedback', ''),
-                        'speaking_tips': grammar_info.get('speaking_tips', ''),
-                        'communication_advice': grammar_info.get('communication_advice', ''),
-                        'had_errors': grammar_info.get('had_errors', False),
-                        'confidence_score': grammar_info.get('confidence_score', 0.5),
-                        'error_categories': grammar_info.get('error_categories', []),
-                        'suggestions_count': grammar_info.get('suggestions_count', 0),
-                        'alternative_expressions': grammar_info.get('alternative_expressions', []),
-                        'conversation_prompts': grammar_info.get('conversation_prompts', []),
-                        'progress_acknowledgment': grammar_info.get('progress_acknowledgment', 'Great job practicing!')
-                    }
                 }
-            else:
-                response = {
-                    'text': 'Sorry, I could not understand the audio.',
-                    'audio_url': None,
-                    'user_input': None,
-                    'grammar_correction': None
-                }
-                
-            return jsonify(response)
+            })
             
+        except subprocess.CalledProcessError as e:
+            print(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Error processing audio format. Please try a different audio format or check your microphone settings.',
+                'data': None
+            }), 500
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f"Error processing audio: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'data': None
+            }), 500
         finally:
-            # Cleanup in finally block to ensure it's always cleaned up
+            # Clean up temporary input file
             if temp_input and os.path.exists(temp_input):
                 try:
                     os.remove(temp_input)
-                except OSError as e:
-                    print(f"Warning: Could not remove temporary input file {temp_input}: {e}")
-                    # If we can't remove it now, try to remove it later
-                    import threading
-                    def delayed_cleanup():
-                        import time
-                        time.sleep(1)  # Wait a bit
-                        try:
-                            if os.path.exists(temp_input):
-                                os.remove(temp_input)
-                        except:
-                            pass  # Ignore cleanup errors
-                    threading.Thread(target=delayed_cleanup, daemon=True).start()
+                except:
+                    pass
 
     @app.route('/api/languages')
     def get_languages():
         return jsonify(SUPPORTED_LANGUAGES)
 
-    @app.route('/api/voices')
-    def get_voices():
-        """Get available voice options."""
-        return jsonify(assistant.get_available_voices())
+    # @app.route('/api/voices')
+    # def get_voices():
+    #     """Get available voice options."""
+    #     return jsonify(assistant.get_available_voices())
     
     @app.route('/api/health')
     def health_check():
@@ -177,4 +179,17 @@ def create_app(config=None):
 def run_app():
     """Function to run the Flask app - used by CLI."""
     app = create_app()
-    app.run(debug=True, port=5000) 
+    
+    try:
+        import hypercorn.asyncio
+        from hypercorn.config import Config
+        
+        config = Config()
+        config.bind = ["127.0.0.1:5000"]
+        config.use_reloader = True
+        
+        import asyncio
+        asyncio.run(hypercorn.asyncio.serve(app, config))
+    except ImportError:
+        # Fallback to regular Flask server
+        app.run(debug=True, port=5000) 

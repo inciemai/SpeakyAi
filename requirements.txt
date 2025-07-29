@@ -1,8 +1,16 @@
-SpeechRecognition==3.14.3
-gTTS==2.3.2
-google-generativeai==0.3.1
-python-dotenv==1.0.0
-flask==3.0.0
-flask-cors==4.0.0
+# Core web framework
+Flask==3.0.2
+Flask-CORS==4.0.0
+
+# Audio processing
+SpeechRecognition==3.10.1
 pydub==0.25.1
-setuptools>=65.0.0 
+gTTS==2.5.1
+pygame==2.5.2
+
+# AI and language processing
+google-generativeai==0.3.2
+python-dotenv==1.0.1
+
+# Optional: For local audio playback (can be removed for web-only deployment)
+PyAudio==0.2.14
