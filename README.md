@@ -50,6 +50,28 @@ cp .env.template .env
 # Get your free API key from: https://makersuite.google.com/app/apikey
 ```
 
+### 📦 Optional Dependencies
+
+For local development with audio playback support:
+
+```bash
+# Install PortAudio development libraries first:
+
+# On Ubuntu/Debian:
+sudo apt-get install portaudio19-dev
+
+# On macOS:
+brew install portaudio
+
+# On Windows:
+# PortAudio is included in PyAudio wheels for Windows
+
+# Then install optional dependencies:
+pip install -r optional-requirements.txt
+```
+
+Note: PyAudio is only required for local audio playback. The web interface works without it.
+
 ## ⚙️ Configuration
 
 ### 🔑 Get Your Free API Key

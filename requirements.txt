@@ -12,5 +12,4 @@ pygame
 google-generativeai==0.3.2
 python-dotenv==1.0.1
 
-# Optional: For local audio playback (can be removed for web-only deployment)
-PyAudio==0.2.14
+# Note: PyAudio is moved to optional-requirements.txt as it's only needed for local development

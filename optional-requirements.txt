@@ -1,0 +1,5 @@
+# Optional dependencies for local development only
+# These are not required for web deployment
+
+# For local audio playback
+PyAudio==0.2.14  # Requires PortAudio development libraries to be installed 
