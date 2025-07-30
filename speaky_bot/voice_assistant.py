@@ -1,6 +1,10 @@
 import os
 import subprocess
 import time
+import wave
+import tempfile
+from typing import Optional, Dict, Any
+import numpy as np
 import speech_recognition as sr
 from gtts import gTTS
 import google.generativeai as genai
@@ -43,6 +47,9 @@ generation_config = {
     "top_k": 40,
     "max_output_tokens": 200,
 }
+
+# Check if running in server environment
+IS_SERVER = os.getenv('RENDER', '').lower() == 'true'
 
 # Create a directory for temporary files in the current working directory
 TEMP_DIR = os.path.join(os.getcwd(), 'temp_audio')
@@ -107,17 +114,29 @@ SUPPORTED_LANGUAGES = {
 }
 
 class VoiceAssistant:
-    def __init__(self):
+    def __init__(self, language: str = 'English'):
         # Initialize speech recognizer
         self.recognizer = sr.Recognizer()
         
-        # Set default language
-        self.current_language = 'English'
+        # Set language settings
+        self.current_language = language
+        self.language_code = SUPPORTED_LANGUAGES.get(language, 'en')
         
         # Initialize conversation history for context-aware analysis
         self.conversation_history = []
         self.user_patterns = {}
         self.grammar_analysis_cache = {}
+        
+        # Only import sounddevice if not running on server
+        if not IS_SERVER:
+            try:
+                import sounddevice as sd
+                self.sd = sd
+            except OSError:
+                print("Warning: Audio hardware not available")
+                self.sd = None
+        else:
+            self.sd = None
         
         # Configure Gemini AI
         if not GEMINI_API_KEY:
