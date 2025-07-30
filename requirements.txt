@@ -13,3 +13,4 @@ sounddevice
 # AI and language processing
 google-generativeai
 python-dotenv
+flask[async]
