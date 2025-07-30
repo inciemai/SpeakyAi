@@ -1127,6 +1127,29 @@ FOCUS AREAS:
             'confidence_level': stats['confidence_average']
         }
 
+    def _get_weighted_conversation_history(self):
+        """Get weighted conversation history based on specified ratios:
+        60% from recent (2-3 chats), 20% from older chats, 20% for current context"""
+        if not self.conversation_history:
+            return ""
+            
+        history = list(reversed(self.conversation_history))  # Most recent first
+        recent_history = history[:3]  # Last 2-3 chats (60% weight)
+        older_history = history[3:5]  # Next 2 chats (20% weight)
+        
+        context = ""
+        if recent_history:
+            context += "Recent conversations (60% weight):\n"
+            for entry in recent_history:
+                context += f"User: {entry['text']}\nAssistant: {entry['response']}\n\n"
+        
+        if older_history:
+            context += "Older conversations (20% weight):\n"
+            for entry in older_history:
+                context += f"User: {entry['text']}\nAssistant: {entry['response']}\n\n"
+        
+        return context
+
     def _create_prompt(self, user_input, grammar_info=None):
         """Create the prompt for the AI model."""
         # Add grammar correction context if available
@@ -1139,8 +1162,10 @@ Grammar Analysis:
 - Grammar feedback: {grammar_info.get('grammar_feedback', '')}
 - Speaking tips: {grammar_info.get('speaking_tips', '')}
 """
+        # Get weighted conversation history
+        conversation_context = self._get_weighted_conversation_history()
 
-        return f"""You are a knowledgeable AI assistant. Respond to the user's input following these EXACT rules:
+        return f"""You are a knowledgeable AI assistant. Your responses should heavily consider the conversation history, with 60% weight on recent conversations, 20% on older context, and 20% on the current input. Respond following these EXACT rules:
 
 1. First, check for grammar mistakes:
    - If the word order or grammar is incorrect, start with:
@@ -1160,9 +1185,28 @@ Grammar Analysis:
 
 4. Total response should be 5-6 sentences (not counting the grammar correction)
 
+# Previous conversation context for reference
+{conversation_context}
+
 Current language: {self.current_language}
-User input: "{user_input}"
+Current user input (20% weight): "{user_input}"
 {grammar_context}
+
+Instructions for response:
+1. Consider the conversation history with appropriate weights:
+   - 60% weight on the recent 2-3 conversations
+   - 20% weight on older conversations
+   - 20% weight on the current input
+
+2. Maintain conversation continuity:
+   - Reference relevant points from previous exchanges
+   - Build upon established context
+   - Ensure natural flow between topics
+
+3. Format your response as follows:
+   - Address any grammar issues first
+   - Provide a comprehensive answer (4-5 sentences)
+   - End with ONE natural follow-up question
 
 Example format:
 User: "who is india of father"
