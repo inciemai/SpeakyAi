@@ -31,11 +31,23 @@ load_dotenv()
 # Try to import pygame for local audio playback (optional for web deployment)
 try:
     import pygame
-    pygame.mixer.init()
     PYGAME_AVAILABLE = True
 except ImportError:
     PYGAME_AVAILABLE = False
     print("pygame not available - audio playback disabled (OK for web deployment)")
+
+# Initialize pygame mixer only when needed
+def init_pygame_mixer():
+    global PYGAME_AVAILABLE
+    if PYGAME_AVAILABLE:
+        try:
+            pygame.mixer.init()
+            return True
+        except pygame.error:
+            PYGAME_AVAILABLE = False
+            print("pygame mixer initialization failed - audio playback disabled")
+            return False
+    return False
 
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -533,8 +545,8 @@ ENHANCEMENT FOCUS:
 
     def speak(self, text):
         """Convert text to speech and play it (requires pygame for local playback)."""
-        if not PYGAME_AVAILABLE:
-            print("Audio playback not available - pygame not installed")
+        if not PYGAME_AVAILABLE or not init_pygame_mixer():
+            print("Audio playback not available - pygame not installed or audio device not available")
             print("For web deployment, use speak_to_file() instead")
             return
             
