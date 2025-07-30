@@ -3,11 +3,13 @@ Flask==3.0.2
 Flask-CORS==4.0.0
 
 # Audio processing
-SpeechRecognition==3.10.1
-gTTS==2.5.1
-pygame==2.6.1
-sounddevice==0.5.2  # Requires PortAudio system library
+
+SpeechRecognition
+pydub
+gTTS
+pygame
+sounddevice
 
 # AI and language processing
-google-generativeai==0.3.2
-python-dotenv==1.0.1
+google-generativeai
+python-dotenv
